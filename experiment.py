@@ -160,12 +160,12 @@ class SpacedRepetitionModel(object):
             mae_p, cor_p, mae_h, cor_h))
 
     def dump_weights(self, fname):
-        with open(fname, 'wb') as f:
-            for (k, v) in self.weights.iteritems():
+        with open(fname, 'w') as f:
+            for (k, v) in self.weights.items():
                 f.write('%s\t%.4f\n' % (k, v))
 
     def dump_predictions(self, fname, testset):
-        with open(fname, 'wb') as f:
+        with open(fname, 'w') as f:
             f.write('p\tpp\th\thh\tlang\tuser_id\ttimestamp\n')
             for inst in testset:
                 pp, hh = self.predict(inst)
@@ -173,7 +173,7 @@ class SpacedRepetitionModel(object):
                         (inst.p, pp, inst.h, hh, inst.lang, inst.uid, inst.ts))
 
     def dump_detailed_predictions(self, fname, testset):
-        with open(fname, 'wb') as f:
+        with open(fname, 'w') as f:
             f.write('p\tpp\th\thh\tlang\tuser_id\ttimestamp\tlexeme_tag\n')
             for inst in testset:
                 pp, hh = self.predict(inst)
@@ -227,12 +227,13 @@ def read_data(input_file,
               omit_lexemes=False,
               max_lines=None):
     # read learning trace data in specified format, see README for details
+    from sys import intern
     sys.stderr.write('reading data...')
     instances = list()
     if input_file.endswith('gz'):
         f = gzip.open(input_file, 'rb')
     else:
-        f = open(input_file, 'rb')
+        f = open(input_file, 'r')
     reader = csv.DictReader(f)
     for i, row in enumerate(reader):
         if max_lines is not None and i >= max_lines:
@@ -336,7 +337,7 @@ if __name__ == "__main__":
 
     # write out model weights and predictions
     filebits = [args.method] + \
-        [k for k, v in sorted(vars(args).iteritems()) if v is True] + \
+        [k for k, v in sorted(vars(args).items()) if v is True] + \
         [os.path.splitext(os.path.basename(args.input_file).replace('.gz', ''))[0]]
     if args.max_lines is not None:
         filebits.append(str(args.max_lines))
