@@ -21,8 +21,10 @@ MAX_HALF_LIFE = 274.  # 9 months
 LN2 = math.log(2.)
 
 # data instance object
-Instance = namedtuple('Instance',
-                      'p t fv h a lang right wrong ts uid lexeme'.split())
+Instance = namedtuple(
+    'Instance',
+    'p t fv h a lang right wrong ts uid lexeme featureright featurewrong'.
+    split())
 
 
 class SpacedRepetitionModel(object):
@@ -166,11 +168,14 @@ class SpacedRepetitionModel(object):
 
     def dump_predictions(self, fname, testset):
         with open(fname, 'w') as f:
-            f.write('p\tpp\th\thh\tlang\tuser_id\ttimestamp\n')
+            f.write(
+                'p\tpp\th\thh\tlang\tuser_id\ttimestamp\tfeatureright\tfeaturewrong\n'
+            )
             for inst in testset:
                 pp, hh = self.predict(inst)
-                f.write('%.4f\t%.4f\t%.4f\t%.4f\t%s\t%s\t%d\n' %
-                        (inst.p, pp, inst.h, hh, inst.lang, inst.uid, inst.ts))
+                f.write('%.4f\t%.4f\t%.4f\t%.4f\t%s\t%s\t%d\t%d\t%d,\n' %
+                        (inst.p, pp, inst.h, hh, inst.lang, inst.uid, inst.ts,
+                         inst.featureright, inst.featurewrong))
 
     def dump_detailed_predictions(self, fname, testset):
         with open(fname, 'w') as f:
@@ -189,7 +194,7 @@ class SpacedRepetitionModel(object):
 
 def pclip(p):
     # bound min/max model predictions (helps with loss optimization)
-    return min(max(p, 0.0001), .9999)
+    return min(max(p, 0.0001), .99999)
 
 
 def hclip(h):
@@ -274,7 +279,8 @@ def read_data(input_file,
                  1.))
         instances.append(
             Instance(p, t, fv, h, (right + 2.) / (seen + 4.), lang, right_this,
-                     wrong_this, timestamp, user_id, lexeme_string))
+                     wrong_this, timestamp, user_id, lexeme_string, right,
+                     wrong))
         if i % 1000000 == 0:
             sys.stderr.write('%d...' % i)
     sys.stderr.write('done!\n')
