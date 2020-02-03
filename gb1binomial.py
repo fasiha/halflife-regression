@@ -36,7 +36,6 @@ class Gb1Binomial(Discrete):
         samples = np.reshape(stats.binom.rvs(n=_n, p=_p, size=_size), size)
         return samples
 
-    # def random(self, point=None, size=None): # try calling parent?
     def random(self, point=None, size=None):
         """
         Draw random values from BetaBinomial distribution.
@@ -73,13 +72,19 @@ class Gb1Binomial(Discrete):
         -------
         TensorVariable
         """
-        alpha = self.alpha
-        beta = self.beta
-        delta = self.delta
-        return bound(
-            binomln(self.n, value) +
-            betaln(value + alpha, self.n - value + beta) - betaln(alpha, beta),
-            value >= 0, value <= self.n, alpha > 0, beta > 0, delta > 0)
+        alpha, beta, delta, n, k = self.alpha, self.beta, self.delta, self.n, value
+        # mags = [
+        #     binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
+        #     for i in range(0, n - k + 1)
+        # ]
+        # signs = [(-1)**i for i in range(0, n - k + 1)]
+
+        i = tt.arange(n - k + 1.0)
+        mags = binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
+        signs = (-1.0)**i
+
+        return bound(logsumexp(mags, signs), value >= 0, value <= self.n,
+                     alpha > 0, beta > 0, delta > 0)
 
     def _repr_latex_(self, name=None, dist=None):
         if dist is None:
@@ -89,3 +94,22 @@ class Gb1Binomial(Discrete):
         name = r'\text{%s}' % name
         return r'${} \sim \text{{Gb1Binomial}}(\mathit{{alpha}}={},~\mathit{{beta}}={})$'.format(
             name, get_variable_name(alpha), get_variable_name(beta))
+
+
+def logsumexp(x, signs, axis=None):
+    x_max = tt.max(x, axis=axis, keepdims=True)
+    result = tt.sum(signs * tt.exp(x - x_max), axis=axis, keepdims=True)
+    return tt.switch(result >= 0,
+                     tt.log(result) + x_max,
+                     tt.log(-result) + x_max)
+
+
+def logsumexp_pure(a, b):
+    a_max = max(a)
+    s = 0
+    for i in range(len(a) - 1, -1, -1):
+        s += b[i] * exp(a[i] - a_max)
+    sgn = 1 if s >= 0 else -1
+    s *= sgn
+    out = log(s) + a_max
+    return [out, sgn]
