@@ -1,3 +1,4 @@
+import theano
 import theano.tensor as tt
 from pymc3 import Discrete, floatX, intX
 from pymc3.math import tround
@@ -37,20 +38,6 @@ class Gb1Binomial(Discrete):
         return samples
 
     def random(self, point=None, size=None):
-        """
-        Draw random values from BetaBinomial distribution.
-        Parameters
-        ----------
-        point : dict, optional
-            Dict of variable values on which random values are to be
-            conditioned (uses default point if not specified).
-        size : int, optional
-            Desired size of random sample (returns one sample if not
-            specified).
-        Returns
-        -------
-        array
-        """
         alpha, beta, n = \
             draw_values([self.alpha, self.beta, self.n], point=point, size=size)
         return generate_samples(self._random,
@@ -61,30 +48,17 @@ class Gb1Binomial(Discrete):
                                 size=size)
 
     def logp(self, value):
-        """
-        Calculate log-probability of BetaBinomial distribution at specified value.
-        Parameters
-        ----------
-        value : numeric
-            Value(s) for which log-probability is calculated. If the log probabilities for multiple
-            values are desired the values must be provided in a numpy array or theano tensor
-        Returns
-        -------
-        TensorVariable
-        """
         alpha, beta, delta, n, k = self.alpha, self.beta, self.delta, self.n, value
-        # mags = [
-        #     binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
-        #     for i in range(0, n - k + 1)
-        # ]
-        # signs = [(-1)**i for i in range(0, n - k + 1)]
 
-        i = tt.arange(n - k + 1.0)
-        mags = binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
-        signs = (-1.0)**i
+        def mapper(n, k):
+            i = tt.arange(n - k + 1.0)
+            mags = binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
+            signs = (-1.0)**i
+            return binomln(n, k) - betaln(alpha, beta) + logsumexp(mags, signs)
 
-        return bound(logsumexp(mags, signs), value >= 0, value <= self.n,
-                     alpha > 0, beta > 0, delta > 0)
+        return bound(
+            theano.map(mapper, sequences=[n, k])[0], value >= 0,
+            value <= self.n, alpha > 0, beta > 0, delta > 0)
 
     def _repr_latex_(self, name=None, dist=None):
         if dist is None:
@@ -97,19 +71,9 @@ class Gb1Binomial(Discrete):
 
 
 def logsumexp(x, signs, axis=None):
+    "Adaptation of PyMC's logsumexp, but can take a list of signs like Scipy"
     x_max = tt.max(x, axis=axis, keepdims=True)
     result = tt.sum(signs * tt.exp(x - x_max), axis=axis, keepdims=True)
     return tt.switch(result >= 0,
                      tt.log(result) + x_max,
                      tt.log(-result) + x_max)
-
-
-def logsumexp_pure(a, b):
-    a_max = max(a)
-    s = 0
-    for i in range(len(a) - 1, -1, -1):
-        s += b[i] * exp(a[i] - a_max)
-    sgn = 1 if s >= 0 else -1
-    s *= sgn
-    out = log(s) + a_max
-    return [out, sgn]
