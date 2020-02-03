@@ -14,9 +14,9 @@ class Gb1Binomial(Discrete):
         self.beta = beta = tt.as_tensor_variable(floatX(beta))
         self.delta = delta = tt.as_tensor_variable(floatX(delta))
         self.n = n = tt.as_tensor_variable(intX(n))
-        self.mode = tt.cast(tround(alpha / (alpha + beta)), 'int8')  # ??
+        # self.mode = tt.cast(tround(alpha / (alpha + beta)), 'int8')  # ??
 
-    def _random(self, alpha, beta, n, size=None):
+    def _random(self, alpha, beta, n, delta, size=None):
         size = size or 1
         p = stats.beta.rvs(a=alpha, b=beta, size=size).flatten()
         # Sometimes scipy.beta returns nan. Ugh.
@@ -25,7 +25,7 @@ class Gb1Binomial(Discrete):
             p[i] = stats.beta.rvs(a=alpha, b=beta, size=np.sum(i))
         # Sigh...
         _n, _p, _size = np.atleast_1d(n).flatten(), p.flatten(), p.shape[0]
-        _p = p**self.delta
+        _p = _p**delta
 
         quotient, remainder = divmod(_p.shape[0], _n.shape[0])
         if remainder != 0:
@@ -38,27 +38,29 @@ class Gb1Binomial(Discrete):
         return samples
 
     def random(self, point=None, size=None):
-        alpha, beta, n = \
-            draw_values([self.alpha, self.beta, self.n], point=point, size=size)
+        alpha, beta, n, delta = \
+            draw_values([self.alpha, self.beta, self.n, self.delta], point=point, size=size)
         return generate_samples(self._random,
                                 alpha=alpha,
                                 beta=beta,
                                 n=n,
+                                delta=delta,
                                 dist_shape=self.shape,
                                 size=size)
 
     def logp(self, value):
-        alpha, beta, delta, n, k = self.alpha, self.beta, self.delta, self.n, value
-
-        def mapper(n, k):
+        def mapper(n, k, alpha, beta, delta):
             i = tt.arange(n - k + 1.0)
             mags = binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
-            signs = (-1.0)**i
+            signs = (-tt.ones_like(i))**i  # (-1.0)**i
             return binomln(n, k) - betaln(alpha, beta) + logsumexp(mags, signs)
 
         return bound(
-            theano.map(mapper, sequences=[n, k])[0], value >= 0,
-            value <= self.n, alpha > 0, beta > 0, delta > 0)
+            theano.map(mapper,
+                       sequences=[self.n, value],
+                       non_sequences=[self.alpha, self.beta,
+                                      self.delta])[0], value >= 0,
+            value <= self.n, self.alpha > 0, self.beta > 0, self.delta > 0)
 
     def _repr_latex_(self, name=None, dist=None):
         if dist is None:

@@ -12,7 +12,7 @@ print('Running on PyMC3 v{}'.format(pm.__version__))
 
 ##
 
-Ndata = 200
+Ndata = 1000
 
 
 def genBetaBinom(Ndata):
@@ -63,7 +63,7 @@ with pm.Model() as model:
                                 beta=b,
                                 delta=d)
 
-    trace = pm.sample(1000, tune=1000, cores=2)
+    trace = pm.sample(2000, tune=1000, cores=2)
 # pm.traceplot(trace)
 df = pm.trace_to_dataframe(trace)
 print(df.describe())
