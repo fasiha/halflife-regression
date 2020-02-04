@@ -8,6 +8,8 @@ from pymc3.distributions import draw_values, generate_samples
 
 
 class Gb1Binomial(Discrete):
+    "Adaptation of BetaBinomial"
+
     def __init__(self, alpha, beta, delta, n, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.alpha = alpha = tt.as_tensor_variable(floatX(alpha))

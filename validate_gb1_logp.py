@@ -4,25 +4,23 @@ import numpy as np
 
 
 def binomln(n, k):
-    # Assumes binom(n, k) >= 0
+    # https://stackoverflow.com/a/21775412/500207
     return -betaln(1 + n - k, 1 + k) - np.log(n + 1)
 
 
-ALPHA = 3.3
-BETA = 4.4
-DELTA = 3.33
-N = 20
-
-
-def genGb1Binom(Ndata):
-    # n = np.random.randint(1, 20, size=Ndata)
+def genGb1Binom(Ndata, ALPHA, BETA, DELTA, N):
     n = np.ones(Ndata, dtype=int) * N
     p = beta.rvs(ALPHA, BETA, size=Ndata)**DELTA
     return binom.rvs(n, p)
 
 
+ALPHA = 3.3
+BETA = 4.4
+DELTA = 3.33
+N = 5
+
 Ndata = 1_000_000
-obs = genGb1Binom(Ndata)
+obs = genGb1Binom(Ndata, ALPHA, BETA, DELTA, N)
 
 
 def logp(k, alpha, beta, delta, n):
@@ -39,7 +37,7 @@ def logsumexp(x, signs):
     return np.log(result if result >= 0 else -result) + x_max
 
 
-def mkhist(v):
+def makeEmpiricalPmf(v):
     m = np.max(v)
     d = np.zeros(1 + m)
     for x in v:
@@ -47,8 +45,7 @@ def mkhist(v):
     return d / len(v)
 
 
-tups = [(n, np.exp(logp(n, ALPHA, BETA, DELTA, N))) for n in range(N + 1)]
-# print(tups)
-print(sum([x for _, x in tups]))
-h = (mkhist(obs))
-print(np.array([(p, h) for h, (n, p) in zip(h, tups)]))
+pmf = np.array([np.exp(logp(n, ALPHA, BETA, DELTA, N)) for n in range(N + 1)])
+assert np.allclose(np.sum(pmf), 1)
+pmfhat = np.array(makeEmpiricalPmf(obs))
+assert np.all(np.abs(pmfhat - pmf) / np.abs(pmf) < .1)
