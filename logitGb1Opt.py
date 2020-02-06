@@ -15,6 +15,8 @@ def logp(k, alpha, beta, delta, n):
     i = np.arange(n - k + 1.0)
     mags = binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
     signs = (-1.0)**i
+    # if delta is 0.000005, logsumexp could be 0 (log0 = 1) or negative, causing underflow.
+    # solutions: sqrt(delta), or clip here
     return binomln(n, k) - betaln(alpha, beta) + logsumexp(
         mags, b=signs, return_sign=False)
 
@@ -121,17 +123,35 @@ million['scaledright'] = count2feature(million.history_correct)
 million['scaledwrong'] = count2feature(million.history_seen -
                                        million.history_correct)
 million['days'] = million.delta / (3600 * 24)
-data = million[:1000]
+data = million[:100_000]
 
 datadict = dict(X=np.array([data.scaledright.values,
                             data.scaledwrong.values]).T,
-                deltas=data.days.values,
+                deltas=np.sqrt(data.days.values),
                 ns=data.session_seen.values,
                 ks=data.session_correct.values)
 
 
 def optim():
     init = np.array([1., 0., 1., 0., 1., 1.])
+    init = np.array([
+        0.31057201, -0.71416394, 2.27943638, 0.7567439, 151.24682103,
+        277.99205638
+    ])  # weights with 1000 points, regular delta
+    init = np.array([
+        0.21755801, -0.90975275, 2.8925863, 0.65805051, 75.58410503,
+        175.98797187
+    ])  # weights with 10_000 points, reguular delta
+    # init = np.array([1., 0., 1., 0., 1., 1.])
+    init = np.array([
+        0.36361948, -0.66745148, 1.82226708, 0.78219012, 90.76710688,
+        149.30608934
+    ])  # 1_000 with sqrt days
+
+    init = np.array([
+        0.18302904, -0.68738957, 2.40760191, 0.93528212, 70.6042957,
+        148.33726586
+    ])  #  100_000 with sqrt days, took 3100 seconds
     import time
     start_time = time.time()
     sol = opt.minimize(lambda x: objective(x, datadict),
@@ -142,4 +162,5 @@ def optim():
     print(sol)
 
 
+np.seterr(all='raise')
 optim()
