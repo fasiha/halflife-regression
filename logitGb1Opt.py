@@ -33,6 +33,22 @@ def logpJacobianMu(k, alpha, beta, delta, n, mu, kappa, logitMu, logitKappa,
     return numerator / denominator
 
 
+def logpJacobianKappa(k, alpha, beta, delta, n, mu, kappa, logitMu, logitKappa,
+                      feature):
+    kappaPrime = kappa / (np.exp(logitKappa) + 1) * feature
+    i = np.arange(n - k + 1.0)
+    ds = delta * (i + k)
+    mags = binomln(n - k, i) + betaln(ds + alpha, beta)
+    signs = (-1.0)**i
+    Bab = betaln(alpha, beta)
+    denominator = np.exp(logsumexp(mags, b=signs) - Bab)
+    psis = mu * (psi(alpha) - psi(ds + alpha)) + psi(ds + 1 / kappa) - psi(
+        1 / kappa)
+    numerator = np.sum(psis * kappaPrime / kappa**2 * signs *
+                       np.exp(mags - Bab))
+    return numerator / denominator
+
+
 def derivTest(w, muNotKappa=True, jacobian=False):
     feature = -0.3
     logitMu = 0.2 + (w * feature if muNotKappa else 0)
@@ -46,13 +62,16 @@ def derivTest(w, muNotKappa=True, jacobian=False):
     delta = 0.8
     if not jacobian: return logp(k, alpha, beta, delta, n)
 
-    return logpJacobianMu(k, alpha, beta, delta, n, mu, kappa, logitMu,
-                          logitKappa, feature)
+    return (logpJacobianMu if muNotKappa else logpJacobianKappa)(
+        k, alpha, beta, delta, n, mu, kappa, logitMu, logitKappa, feature)
 
 
+pt = 2.1
 [
-    nd.Derivative(lambda x: derivTest(x, muNotKappa=True))(1.1),
-    derivTest(1.1, muNotKappa=True, jacobian=True),
+    nd.Derivative(derivTest)(pt),
+    derivTest(pt, jacobian=True),
+    nd.Derivative(lambda x: derivTest(x, muNotKappa=False))(pt),
+    derivTest(pt, muNotKappa=False, jacobian=True)
 ]
 
 
