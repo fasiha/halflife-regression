@@ -24,6 +24,7 @@ def logpJacobianLinearAlpha(k, alpha, beta, delta, n, feature):
     d = delta * (i + k)
     p = psi(alpha + beta) + psi(alpha + d) - psi(alpha) - psi(alpha + beta + d)
     return p * feature
+    ### NEED A SUM HERE SOMEWHERE
 
 
 def logpJacobianLinearBeta(k, alpha, beta, delta, n, feature):
