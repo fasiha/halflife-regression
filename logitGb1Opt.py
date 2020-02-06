@@ -4,8 +4,17 @@ import numpy as np
 import pandas as pd
 from scipy.special import logsumexp, psi, logit, expit
 import numdifftools as nd
+from functools import lru_cache
 
 
+@lru_cache(maxsize=None)
+def binomlnCached(n, k):
+    # https://stackoverflow.com/a/21775412/500207
+    k = np.array(k)
+    return -betaln(1 + n - k, 1 + k) - np.log(n + 1)
+
+
+# Caching binomln (by converting array arguments to tuples) seems to be 1.08x.
 def binomln(n, k):
     # https://stackoverflow.com/a/21775412/500207
     return -betaln(1 + n - k, 1 + k) - np.log(n + 1)
@@ -77,38 +86,39 @@ pt = 2.1
 ]
 
 
-def objective(weights, datadict, jacobian=False):
-    logitMus = datadict['X'] @ weights[:2] + weights[2]
+def objective(weights, df, jacobian=False):
+    wm1, wm2, wm0, wk1, wk2, wk0 = weights
+    logitMus = df.feature1 * wm1 + df.feature2 * wm2 + wm0
     mus = expit(logitMus)
-    logitKappas = datadict['X'] @ weights[3:5] + weights[5]
-    ks = expit(logitKappas)
-    alphas = mus / ks
-    betas = (1 - mus) / ks
-    deltas = datadict['deltas']
-    ns = datadict['ns']
-    ks = datadict['ks']
+    logitKappas = df.feature1 * wk1 + df.feature2 * wk2 + wk0
+    kappas = expit(logitKappas)
+    alphas = mus / kappas
+    betas = (1 - mus) / kappas
+    deltas = df.delta_.values
+    ns = df.n.values
+    ks = df.k.values
 
     prob = sum(map(logp, ks, alphas, betas, deltas, ns))
     if jacobian:
         jac = np.array([
             sum(
                 map(logpJacobianMu, ks, alphas, betas, deltas, ns, mus, kappas,
-                    logitMus, logitKappas, datadict['X'][:, 0])),
+                    logitMus, logitKappas, df.feature1)),
             sum(
                 map(logpJacobianMu, ks, alphas, betas, deltas, ns, mus, kappas,
-                    logitMus, logitKappas, datadict['X'][:, 1])),
+                    logitMus, logitKappas, df.feature2)),
             sum(
                 map(logpJacobianMu, ks, alphas, betas, deltas, ns, mus, kappas,
-                    logitMus, logitKappas, np.ones(len(data)))),
+                    logitMus, logitKappas, np.ones(len(df)))),
             sum(
                 map(logpJacobianKappa, ks, alphas, betas, deltas, ns, mus,
-                    kappas, logitMus, logitKappas, datadict['X'][:, 0])),
+                    kappas, logitMus, logitKappas, df.feature1)),
             sum(
                 map(logpJacobianKappa, ks, alphas, betas, deltas, ns, mus,
-                    kappas, logitMus, logitKappas, datadict['X'][:, 1])),
+                    kappas, logitMus, logitKappas, df.feature2)),
             sum(
                 map(logpJacobianKappa, ks, alphas, betas, deltas, ns, mus,
-                    kappas, logitMus, logitKappas, np.ones(len(data)))),
+                    kappas, logitMus, logitKappas, np.ones(len(df)))),
         ])
         return (-prob, -jac)
     return -prob
@@ -119,17 +129,15 @@ def count2feature(x, log=True):
 
 
 million = pd.read_csv("pymcmill.csv")  # features.csv for full
-million['scaledright'] = count2feature(million.history_correct)
-million['scaledwrong'] = count2feature(million.history_seen -
-                                       million.history_correct)
-million['days'] = million.delta / (3600 * 24)
-data = million[:100_000]
+million['feature1'] = count2feature(million.history_correct)
+million['feature2'] = count2feature(million.history_seen -
+                                    million.history_correct)
+million['delta_'] = np.sqrt(million.delta / (3600 * 24))
+million['n'] = million.session_seen
+million['k'] = million.session_correct
+data = million[:1_000]
 
-datadict = dict(X=np.array([data.scaledright.values,
-                            data.scaledwrong.values]).T,
-                deltas=np.sqrt(data.days.values),
-                ns=data.session_seen.values,
-                ks=data.session_correct.values)
+print(objective(np.array([1., 0., 1., 0., 1., 1.]), data))
 
 
 def optim():
@@ -154,7 +162,7 @@ def optim():
     ])  #  100_000 with sqrt days, took 3100 seconds
     import time
     start_time = time.time()
-    sol = opt.minimize(lambda x: objective(x, datadict),
+    sol = opt.minimize(lambda x: objective(x, data),
                        init,
                        method='Nelder-Mead',
                        options=dict(disp=True))
@@ -163,4 +171,4 @@ def optim():
 
 
 np.seterr(all='raise')
-optim()
+# optim()
