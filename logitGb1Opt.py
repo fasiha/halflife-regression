@@ -75,15 +75,41 @@ pt = 2.1
 ]
 
 
-def objective(weights, datadict):
-    mus = expit(datadict['X'] @ weights[:2] + weights[2])
-    ks = expit(datadict['X'] @ weights[3:5] + weights[5])
+def objective(weights, datadict, jacobian=False):
+    logitMus = datadict['X'] @ weights[:2] + weights[2]
+    mus = expit(logitMus)
+    logitKappas = datadict['X'] @ weights[3:5] + weights[5]
+    ks = expit(logitKappas)
     alphas = mus / ks
     betas = (1 - mus) / ks
     deltas = datadict['deltas']
     ns = datadict['ns']
     ks = datadict['ks']
-    return -sum(map(logp, ks, alphas, betas, deltas, ns))
+
+    prob = sum(map(logp, ks, alphas, betas, deltas, ns))
+    if jacobian:
+        jac = np.array([
+            sum(
+                map(logpJacobianMu, ks, alphas, betas, deltas, ns, mus, kappas,
+                    logitMus, logitKappas, datadict['X'][:, 0])),
+            sum(
+                map(logpJacobianMu, ks, alphas, betas, deltas, ns, mus, kappas,
+                    logitMus, logitKappas, datadict['X'][:, 1])),
+            sum(
+                map(logpJacobianMu, ks, alphas, betas, deltas, ns, mus, kappas,
+                    logitMus, logitKappas, np.ones(len(data)))),
+            sum(
+                map(logpJacobianKappa, ks, alphas, betas, deltas, ns, mus,
+                    kappas, logitMus, logitKappas, datadict['X'][:, 0])),
+            sum(
+                map(logpJacobianKappa, ks, alphas, betas, deltas, ns, mus,
+                    kappas, logitMus, logitKappas, datadict['X'][:, 1])),
+            sum(
+                map(logpJacobianKappa, ks, alphas, betas, deltas, ns, mus,
+                    kappas, logitMus, logitKappas, np.ones(len(data)))),
+        ])
+        return (-prob, -jac)
+    return -prob
 
 
 def count2feature(x, log=True):
@@ -106,10 +132,14 @@ datadict = dict(X=np.array([data.scaledright.values,
 
 def optim():
     init = np.array([1., 0., 1., 0., 1., 1.])
+    import time
+    start_time = time.time()
     sol = opt.minimize(lambda x: objective(x, datadict),
                        init,
-                       method='Nelder-Mead')
+                       method='Nelder-Mead',
+                       options=dict(disp=True))
+    print('auto-jacobian took {} seconds'.format(time.time() - start_time))
     print(sol)
 
 
-# optim()
+optim()
