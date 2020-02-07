@@ -193,16 +193,16 @@ def count2feature(x, log=True):
     return np.log(1 + x) + 1 if log else np.sqrt(1 + x)
 
 
-million = pd.read_csv("pymcmill.csv")  # features.csv for full
-million['feature1'] = count2feature(million.history_correct)
-million['feature2'] = count2feature(million.history_seen -
-                                    million.history_correct)
-million['delta_'] = np.sqrt(million.delta / (3600 * 24))
-million['n'] = million.session_seen
-million['k'] = million.session_correct
+fulldata = pd.read_csv("features.csv")  # features.csv for full
+fulldata['feature1'] = count2feature(fulldata.history_correct)
+fulldata['feature2'] = count2feature(fulldata.history_seen -
+                                     fulldata.history_correct)
+fulldata['delta_'] = np.sqrt(fulldata.delta / (3600 * 24))
+fulldata['n'] = fulldata.session_seen
+fulldata['k'] = fulldata.session_correct
 Ndata = 1_000
-data = million[:Ndata]
-test = million[:Ndata]
+data = fulldata[:Ndata]
+test = fulldata[Ndata:]
 
 
 def verifyJacobian():
@@ -242,13 +242,6 @@ def evaluate(weights, df):
     meanPosterior = np.mean(
         np.exp(np.vectorize(logp)(ks, alphas, betas, deltas, ns)))
     return dict(meanAbsoluteError=mae, meanPosterior=meanPosterior)
-
-
-evaluate(
-    np.array([
-        0.18302904, -0.68738957, 2.40760191, 0.93528212, 70.6042957,
-        148.33726586
-    ]), test)
 
 
 def optim():
@@ -334,4 +327,41 @@ def optim():
 
 
 np.seterr(all='raise')
+
 # optim()
+
+
+# https://github.com/benbo/adagrad/blob/master/adagrad.py
+def adaGrad(weights,
+            df,
+            stepsize=1e-2,
+            fudge_factor=1e-6,
+            max_it=1000,
+            minibatchsize=250,
+            verbose=True):
+    ld = len(data)
+    gti = np.zeros_like(weights)
+
+    for t in range(max_it):
+        sd = df.sample(minibatchsize).reset_index(
+            drop=True)  # https://stackoverflow.com/a/34879805/500207
+        _, grad = optimizedObjective(weights, sd)
+        gti += grad**2
+        adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
+        weights -= stepsize * adjusted_grad
+        if verbose:
+            # prob = objective(weights, df)
+            print("# Iteration {}, weights={}, |grad|^2={:.1e}".format(
+                t, weights, np.sum(grad**2)))
+    return weights
+
+
+Ndata = round(len(fulldata) * 0.9)
+data = fulldata[:Ndata]
+test = fulldata[Ndata:]
+
+init = np.zeros(6)
+nice = np.array(
+    [0.18648945, -0.70397773, 2.43953953, 0.75399696, 0.45243174, 0.30796359])
+# adaGrad(init, data, minibatchsize=1000)
+# adaGrad(nice, data, minibatchsize=1000)
