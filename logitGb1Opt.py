@@ -20,6 +20,19 @@ def binomln(n, k):
     return -betaln(1 + n - k, 1 + k) - np.log(n + 1)
 
 
+def mylogsumexp(a, b):
+    a_max = np.max(a)
+    s = np.sum(b * np.exp(a - a_max))
+    s = s if s >= 0 else -s
+    return log(s) + a_max
+
+
+def mysumexp(a, b):
+    a_max = np.max(a)
+    s = np.sum(b * np.exp(a - a_max))
+    return s * np.exp(a_max)
+
+
 def logp(k, alpha, beta, delta, n):
     i = np.arange(n - k + 1.0)
     mags = binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
@@ -86,6 +99,58 @@ pt = 2.1
 ]
 
 
+def optimized(k, alpha, beta, delta, n, mu, kappa, logitMu, logitKappa,
+              featureVec):
+    i = np.arange(n - k + 1.0)
+    ds = delta * (i + k)
+    mags = binomln(n - k, i) + betaln(ds + alpha, beta) - betaln(alpha, beta)
+    signs = (-1.0)**i
+    denominator = np.exp(logsumexp(mags, b=signs))
+
+    kappaPrime = kappa / (np.exp(logitKappa) + 1)
+    muPrime = mu / (np.exp(logitMu) + 1)
+
+    denominatorln = logsumexp(mags, b=signs)
+    logp = denominatorln + binomln(n, k)
+
+    psiMu = psi(ds + alpha) - psi(alpha)
+    tmp = signs * np.exp(mags)
+
+    numeratorMu = np.sum(psiMu * tmp) * muPrime / kappa
+    baseJacMu = numeratorMu / denominator
+
+    psiKappa = -mu * psiMu + psi(ds + 1 / kappa) - psi(1 / kappa)
+    numeratorKappa = np.sum(psiKappa * tmp) * kappaPrime / kappa**2
+    baseJacKappa = numeratorKappa / denominator
+
+    return (logp,
+            np.hstack([baseJacMu * featureVec, baseJacKappa * featureVec]))
+
+
+def optimizedObjective(weights, df):
+    wm1, wm2, wm0, wk1, wk2, wk0 = weights
+    logitMus = df.feature1 * wm1 + df.feature2 * wm2 + wm0
+    mus = expit(logitMus)
+    logitKappas = df.feature1 * wk1 + df.feature2 * wk2 + wk0
+    kappas = expit(logitKappas)
+    alphas = mus / kappas
+    betas = (1 - mus) / kappas
+    deltas = df.delta_.values
+    ns = df.n.values
+    ks = df.k.values
+
+    totalY = 0
+    totalJac = 0
+    for (i, args) in enumerate(
+            zip(ks, alphas, betas, deltas, ns, mus, kappas, logitMus,
+                logitKappas)):
+        featureVec = np.array([df.feature1.iloc[i], df.feature2.iloc[i], 1.0])
+        y, jac = optimized(*args, featureVec)
+        totalY += y
+        totalJac += jac
+    return (-totalY, -totalJac)
+
+
 def objective(weights, df, jacobian=False):
     wm1, wm2, wm0, wk1, wk2, wk0 = weights
     logitMus = df.feature1 * wm1 + df.feature2 * wm2 + wm0
@@ -139,6 +204,8 @@ Ndata = 1_000
 data = million[:Ndata]
 
 print(objective(np.array([1., 0., 1., 0., 1., 1.]), data))
+print(objective(np.array([1., 0., 1., 0., 1., 1.]), data, jacobian=True))
+print(optimizedObjective(np.array([1., 0., 1., 0., 1., 1.]), data))
 
 
 def evaluate(weights, df):
