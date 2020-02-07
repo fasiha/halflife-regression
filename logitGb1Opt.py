@@ -202,6 +202,7 @@ million['n'] = million.session_seen
 million['k'] = million.session_correct
 Ndata = 1_000
 data = million[:Ndata]
+test = million[:Ndata]
 
 
 def verifyJacobian():
@@ -243,7 +244,6 @@ def evaluate(weights, df):
     return dict(meanAbsoluteError=mae, meanPosterior=meanPosterior)
 
 
-test = million[:Ndata]
 evaluate(
     np.array([
         0.18302904, -0.68738957, 2.40760191, 0.93528212, 70.6042957,
@@ -282,11 +282,11 @@ def optim():
 
     init = np.zeros(6)
     solcg = opt.minimize(lambda w: optimizedObjective(w, data),
-                init,
-                options=dict(disp=True, gtol=1e-3),
-                tol=1e-3,
-                method='CG',
-                jac=True)
+                         init,
+                         options=dict(disp=True, gtol=1e-3),
+                         tol=1e-3,
+                         method='CG',
+                         jac=True)
     evaluate(solcg.x, test)
     """Optimization terminated successfully.
             Current function value: 535.513650
@@ -295,13 +295,12 @@ def optim():
             Gradient evaluations: 437
     """
 
-
     solBFGS = opt.minimize(lambda w: optimizedObjective(w, data),
-                init,
-                options=dict(disp=True, gtol=1e-3),
-                tol=1e-3,
-                method='BFGS',
-                jac=True)
+                           init,
+                           options=dict(disp=True, gtol=1e-3),
+                           tol=1e-3,
+                           method='BFGS',
+                           jac=True)
     evaluate(solBFGS.x, test)
     """
     Optimization terminated successfully.
@@ -311,14 +310,20 @@ def optim():
             Gradient evaluations: 67
     """
 
+    iter = 0
 
+    def callback(x):
+        global iter
+        iter += 1
+        print("at iter {}".format(iter))
 
     solncg = opt.minimize(lambda w: optimizedObjective(w, data),
-                init,
-                options=dict(disp=True, xtol=1e-3),
-                tol=1e-3,
-                method='Newton-CG',
-                jac=True)
+                          init,
+                          options=dict(disp=True, xtol=1e-3),
+                          tol=1e-3,
+                          method='Newton-CG',
+                          jac=True,
+                          callback=callback)
     evaluate(solncg.x, test)
     """Optimization terminated successfully.
             Current function value: 535.545931
@@ -330,4 +335,3 @@ def optim():
 
 np.seterr(all='raise')
 # optim()
-
