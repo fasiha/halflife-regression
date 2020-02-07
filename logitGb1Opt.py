@@ -135,9 +135,41 @@ million['feature2'] = count2feature(million.history_seen -
 million['delta_'] = np.sqrt(million.delta / (3600 * 24))
 million['n'] = million.session_seen
 million['k'] = million.session_correct
-data = million[:1_000]
+Ndata = 1_000
+data = million[:Ndata]
 
 print(objective(np.array([1., 0., 1., 0., 1., 1.]), data))
+
+
+def evaluate(weights, df):
+    wm1, wm2, wm0, wk1, wk2, wk0 = weights
+    logitMus = df.feature1 * wm1 + df.feature2 * wm2 + wm0
+    mus = expit(logitMus)
+    logitKappas = df.feature1 * wk1 + df.feature2 * wk2 + wk0
+    kappas = expit(logitKappas)
+    alphas = mus / kappas
+    betas = (1 - mus) / kappas
+    deltas = df.delta_.values
+    ns = df.n.values
+    ks = df.k.values
+
+    priorProbability = np.exp(
+        betaln(alphas + deltas, betas) - betaln(alphas, betas))
+    observedProbability = ks / ns
+
+    mae = np.mean(np.abs(priorProbability - observedProbability))
+
+    meanPosterior = np.mean(
+        np.exp(np.vectorize(logp)(ks, alphas, betas, deltas, ns)))
+    return dict(meanAbsoluteError=mae, meanPosterior=meanPosterior)
+
+
+test = million[:Ndata]
+evaluate(
+    np.array([
+        0.18302904, -0.68738957, 2.40760191, 0.93528212, 70.6042957,
+        148.33726586
+    ]), test)
 
 
 def optim():
