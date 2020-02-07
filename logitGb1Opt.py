@@ -280,6 +280,54 @@ def optim():
     print('auto-jacobian took {} seconds'.format(time.time() - start_time))
     print(sol)
 
+    init = np.zeros(6)
+    solcg = opt.minimize(lambda w: optimizedObjective(w, data),
+                init,
+                options=dict(disp=True, gtol=1e-3),
+                tol=1e-3,
+                method='CG',
+                jac=True)
+    evaluate(solcg.x, test)
+    """Optimization terminated successfully.
+            Current function value: 535.513650
+            Iterations: 192
+            Function evaluations: 437
+            Gradient evaluations: 437
+    """
+
+
+    solBFGS = opt.minimize(lambda w: optimizedObjective(w, data),
+                init,
+                options=dict(disp=True, gtol=1e-3),
+                tol=1e-3,
+                method='BFGS',
+                jac=True)
+    evaluate(solBFGS.x, test)
+    """
+    Optimization terminated successfully.
+            Current function value: 535.513632
+            Iterations: 55
+            Function evaluations: 67
+            Gradient evaluations: 67
+    """
+
+
+
+    solncg = opt.minimize(lambda w: optimizedObjective(w, data),
+                init,
+                options=dict(disp=True, xtol=1e-3),
+                tol=1e-3,
+                method='Newton-CG',
+                jac=True)
+    evaluate(solncg.x, test)
+    """Optimization terminated successfully.
+            Current function value: 535.545931
+            Iterations: 12
+            Function evaluations: 13
+            Gradient evaluations: 72
+            Hessian evaluations: 0"""
+
 
 np.seterr(all='raise')
 # optim()
+
