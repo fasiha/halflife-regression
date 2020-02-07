@@ -203,9 +203,21 @@ million['k'] = million.session_correct
 Ndata = 1_000
 data = million[:Ndata]
 
-print(objective(np.array([1., 0., 1., 0., 1., 1.]), data))
-print(objective(np.array([1., 0., 1., 0., 1., 1.]), data, jacobian=True))
-print(optimizedObjective(np.array([1., 0., 1., 0., 1., 1.]), data))
+
+def verifyJacobian():
+    def helper(x, w, i, data):
+        w = w.copy()
+        w[i] = x
+        return objective(w, data)
+
+    testVec = [1., 0., 1., 0., 1., 1.]
+    print(objective(np.array(testVec), data))
+    print(objective(np.array(testVec), data, jacobian=True))
+    print(optimizedObjective(np.array(testVec), data))
+    print([
+        nd.Derivative(lambda x: helper(x, testVec, i, data))(xx)
+        for (i, xx) in enumerate(testVec)
+    ])
 
 
 def evaluate(weights, df):
