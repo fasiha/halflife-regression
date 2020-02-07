@@ -345,14 +345,16 @@ def adaGrad(weights,
     for t in range(max_it):
         sd = df.sample(minibatchsize).reset_index(
             drop=True)  # https://stackoverflow.com/a/34879805/500207
-        _, grad = optimizedObjective(weights, sd)
+        val, grad = optimizedObjective(weights, sd)
         gti += grad**2
         adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
         weights -= stepsize * adjusted_grad
         if verbose:
             # prob = objective(weights, df)
-            print("# Iteration {}, weights={}, |grad|^2={:.1e}".format(
-                t, weights, np.sum(grad**2)))
+            print(
+                "# Iteration {}, weights={}, |grad|^2={:.1e}, Δ={:.1e}".format(
+                    t, weights, np.sum(grad**2),
+                    np.sqrt(np.sum(adjusted_grad**2))))
     return weights
 
 
@@ -363,5 +365,14 @@ test = fulldata[Ndata:]
 init = np.zeros(6)
 nice = np.array(
     [0.18648945, -0.70397773, 2.43953953, 0.75399696, 0.45243174, 0.30796359])
-# adaGrad(init, data, minibatchsize=1000)
-# adaGrad(nice, data, minibatchsize=1000)
+# w = adaGrad(init, data, minibatchsize=1000, max_it=20_000, stepsize=1.)
+# w = adaGrad(nice, data, minibatchsize=1000)
+# w = adaGrad(w, data, minibatchsize=1000)
+
+# evaluate(np.array([ 0.1833436 , -0.69785971,  2.38029033,  1.51137886 , 1.6426737 ,  1.57512674]), test)
+# evaluate(np.array([ 0.21536606 ,-0.63705572 , 2.37135598 , 1.06562983 , 1.09257182 , 1.05931399 ]), test)
+# evaluate(np.array([ 0.18325048 ,-0.67239645 , 2.39111254,  1.3849035  , 1.62478507  ,1.38028196 ]), test)
+
+"20k iterations"
+# evaluate(np.array([0.18491408,-0.69439215,  2.3902709 ,  1.17459025,  1.45161056 , 0.9900386]), test)
+# evaluate(np.array([0.17480081 ,-0.66690311 , 2.38019202 , 1.15393516 , 1.46868852  ,0.91180955]), test)
