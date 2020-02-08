@@ -9,6 +9,16 @@ def prob(k, n, t, x, w):
     return stats.binom.pmf(k, n, p)
 
 
+def evaluate(w, df):
+    x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df))]
+    h = 2**(x @ w)
+    p = 2**(-df.t / h)
+    pmf = stats.binom.pmf(df.k, df.n, p)
+
+    mae = np.mean(np.abs(p - df.obsp))
+    return dict(meanAbsoluteError=mae, meanPosterior=np.mean(pmf))
+
+
 def binomln(n, k):
     # https://stackoverflow.com/a/21775412/500207
     return -special.betaln(1 + n - k, 1 + k) - np.log(n + 1)
@@ -127,7 +137,7 @@ def adaGrad(weights,
 
 init = np.zeros(3)
 X = np.c_[data.sqrtright, data.sqrtwrong, np.ones(len(data))]
-# w = adaGrad(init, data, X, stepsize=1., max_it=2, minibatchsize=1000,verboseIteration=10_000)
+# w = adaGrad(init, data, X, stepsize=1., max_it=2, minibatchsize=10000,verboseIteration=100_000)
 
 
 def testJac():
