@@ -61,6 +61,42 @@ def optimizedObjective(weights, df):
     return (-totalY, -totalJac)
 
 
+def logp(k, alpha, beta, delta, n):
+    i = np.arange(n - k + 1.0)
+    mags = binomln(n - k, i) + betaln(delta * (i + k) + alpha, beta)
+    signs = (-1.0)**i
+    # if delta is 0.000005, logsumexp could be 0 (log0 = 1) or negative, causing underflow.
+    # solutions: sqrt(delta), or clip here
+    return binomln(n, k) - betaln(alpha, beta) + logsumexp(
+        mags, b=signs, return_sign=False)
+
+
+def evaluate(weights, df):
+    wm1, wm2, wm0, wk0 = weights
+    logitMus = df.feature1 * wm1 + df.feature2 * wm2 + wm0
+    mus = expit(logitMus)
+    logitKappas = np.ones(len(df)) * wk0
+    kappas = expit(logitKappas)
+    alphas = mus / kappas
+    betas = (1 - mus) / kappas
+    deltas = df.delta_.values
+    ns = df.n.values
+    ks = df.k.values
+
+    priorProbability = np.exp(
+        betaln(alphas + deltas, betas) - betaln(alphas, betas))
+    observedProbability = ks / ns
+
+    mae = np.mean(np.abs(priorProbability - observedProbability))
+
+    # posteriors = np.exp(np.vectorize(logp)(ks, alphas, betas, deltas, ns))
+    # meanPosterior = np.mean(posteriors)
+    # quantiles = [0.1, 0.5, 0.9]
+    # quantileValues = []  # np.quantile(posteriors, quantiles)
+
+    return dict(meanAbsoluteError=mae)
+
+
 def count2feature(x, log=True):
     return np.log(1 + x) + 1 if log else np.sqrt(1 + x)
 
@@ -117,9 +153,7 @@ data = fulldata[:Ndata]
 test = fulldata[Ndata:]
 
 init = np.zeros(4)
-w = adaGrad(init,
-            data,
-            minibatchsize=1000,
-            max_it=3,
-            stepsize=1.,
-            verboseIteration=1000)
+# w = adaGrad(init,data,minibatchsize=1000,max_it=3,stepsize=1.,            verboseIteration=1000)
+nice = np.array([0.19210431, -0.67477556, 2.35533034, 4.37681914])
+
+nice2 = np.array([1.8806828, 1.02441168, 4.30784716, 5.721494])

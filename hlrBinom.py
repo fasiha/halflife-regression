@@ -90,7 +90,8 @@ fulldata['t'] = fulldata.delta / (60 * 60 * 24)  # convert time delta to days
 fulldata['sqrtright'] = np.sqrt(1 + fulldata.history_correct)
 fulldata['sqrtwrong'] = np.sqrt(1 + (fulldata.history_seen -
                                      fulldata.history_correct))
-fulldata['obsp'] = fulldata.session_correct / fulldata.session_seen
+fulldata[
+    'obsp'] = fulldata.session_correct / fulldata.session_seen  # clip these to compare to HLR paper?
 
 Ndata = round(len(fulldata) * .9)
 data = fulldata[:Ndata]
