@@ -27,6 +27,7 @@ loglog2Times2 = 2 * np.log(log2)
 
 def probJacobianAccurate(k, n, t, x, w, widx):
     logh = x @ w * log2
+    h = np.exp(logh)
     logp = -t / h * log2
     log1MinusP = np.log(-np.expm1(logp))
     logpmf = binomln(n, k) + k * logp + (n - k) * log1MinusP
@@ -52,18 +53,23 @@ def sumProbJac(k, n, t, x, w):
     return (-np.sum(pmf), -(np.atleast_1d(jacBase) @ x))
 
 
+def mysumexp(a, b=1):
+    a_max = np.max(a)
+    s = np.sum(b * np.exp(a - a_max))
+    return s * np.exp(a_max)
+
+
 def sumProbJacDf(w, x, df):
-    h = 2**(x @ w)
-    p = 2**(-df.t / h)
-    pmf = stats.binom.pmf(df.k, df.n, p)
-    # if not np.all(np.isfinite(pmf)):
-    #     print('non finite pmf')
-    #     pdb.set_trace()
-    jacBase = pmf * np.log(2)**2 * df.t / (1 - p) * (df.k - df.n * p) / h
-    # if not np.all(np.isfinite(jacBase)):
-    #     print('non finite jacBase')
-    #     pdb.set_trace()
-    return (-np.sum(pmf), -(jacBase @ x))
+    logh = (x @ w) * log2
+    h = np.exp(logh)
+    logp = (-df.t / h) * log2
+    log1MinusP = np.log(-np.expm1(logp))
+    logpmf = binomln(df.n, df.k) + df.k * logp + (df.n - df.k) * log1MinusP
+
+    logretbase = logpmf + loglog2Times2 + np.log(df.t) - logh - log1MinusP
+    jacBase = np.exp(logretbase) * df.k - np.exp(logretbase + logp +
+                                                 np.log(df.n))
+    return (-mysumexp(logpmf), -(jacBase @ x))
 
 
 import pandas as pd
@@ -87,26 +93,33 @@ def adaGrad(weights,
             x,
             stepsize=1e-2,
             fudge_factor=1e-6,
-            max_it=1000,
+            max_it=2,
             minibatchsize=250,
-            verbose=True):
-    ld = len(data)
+            verbose=True,
+            verboseIteration=100):
+    weights = weights.copy()
     gti = np.zeros_like(weights)
 
+    xslice = slice(0, minibatchsize)
     for t in range(max_it):
-        # https://stackoverflow.com/a/34879805/500207
-        sd = df.sample(minibatchsize)
-        sx = x[sd.index, :]
-        val, grad = sumProbJacDf(weights, sx, sd)
-        gti += grad**2
-        adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
-        weights -= stepsize * adjusted_grad
-        if verbose:
-            # prob = objective(weights, df)
-            print(
-                "# Iteration {}, weights={}, |grad|^2={:.1e}, Δ={:.1e}".format(
-                    t, weights, np.sum(grad**2),
-                    np.sqrt(np.sum(adjusted_grad**2))))
+        df = df.sample(frac=1.0)
+        x = x[df.index, :]
+        while xslice.start < len(df):
+            # https://stackoverflow.com/a/34879805/500207
+            sd = df[xslice]
+            sx = x[xslice, :]
+            val, grad = sumProbJacDf(weights, sx, sd)
+            gti += grad**2
+            adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
+            weights -= stepsize * adjusted_grad
+            if verbose and xslice.start % verboseIteration == 0:
+                # prob = objective(weights, df)
+                print(
+                    "# Iteration {}/{}, weights={}, |grad|^2={:.1e}, Δ={:.1e}".
+                    format(t, xslice.start, weights, np.sum(grad**2),
+                           np.sqrt(np.sum(adjusted_grad**2))))
+            xslice = slice(xslice.start + minibatchsize,
+                           xslice.stop + minibatchsize, xslice.step)
     return weights
 
 
@@ -114,7 +127,7 @@ def adaGrad(weights,
 
 init = np.zeros(3)
 X = np.c_[data.sqrtright, data.sqrtwrong, np.ones(len(data))]
-# w = adaGrad(init, data, X, stepsize=1., max_it=20_000, minibatchsize=1000)
+# w = adaGrad(init, data, X, stepsize=1., max_it=2, minibatchsize=1000,verboseIteration=1)
 
 
 def testJac():
