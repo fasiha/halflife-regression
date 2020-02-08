@@ -193,6 +193,18 @@ def count2feature(x, log=True):
     return np.log(1 + x) + 1 if log else np.sqrt(1 + x)
 
 
+def pclip(p):
+    # bound min/max model predictions (helps with loss optimization)
+    return np.clip(p, a_min=0.0001, a_max=.99999)
+
+
+def hclip(h):
+    # bound min/max half-life
+    MIN_HALF_LIFE = 15.0 / (24 * 60)  # 15 minutes
+    MAX_HALF_LIFE = 274.  # 9 months
+    return np.clip(h, a_min=MIN_HALF_LIFE, a_max=MAX_HALF_LIFE)
+
+
 fulldata = pd.read_csv("features.csv")  # features.csv for full
 fulldata['feature1'] = count2feature(fulldata.history_correct)
 fulldata['feature2'] = count2feature(fulldata.history_seen -
@@ -200,9 +212,35 @@ fulldata['feature2'] = count2feature(fulldata.history_seen -
 fulldata['delta_'] = np.sqrt(fulldata.delta / (3600 * 24))
 fulldata['n'] = fulldata.session_seen
 fulldata['k'] = fulldata.session_correct
+fulldata['sqrtright'] = np.sqrt(1 + fulldata.history_correct)
+fulldata['sqrtwrong'] = np.sqrt(1 + (fulldata.history_seen -
+                                     fulldata.history_correct))
+fulldata['obsp'] = pclip(fulldata.session_correct / fulldata.session_seen)
+fulldata['t'] = fulldata.delta / (60 * 60 * 24)  # convert time delta to days
+fulldata['h'] = hclip(-fulldata.t / (np.log2(fulldata.obsp)))
+
 Ndata = 1_000
 data = fulldata[:Ndata]
 test = fulldata[Ndata:]
+
+
+def evaluateHLR(weights, df):
+    dp = weights[0] * df.sqrtright + weights[1] * df.sqrtwrong + weights[2]
+    h = hclip(2**dp)
+    p = pclip(2.**(-df['t'] / h))
+
+    mae = np.mean(np.abs(p - df.obsp))
+
+    from scipy.stats import binom
+    posteriors = binom.pmf(df.k, df.n, p)
+    quantiles = [0.1, 0.5, 0.9]
+    quantileValues = np.quantile(posteriors, quantiles)
+    return dict(meanAbsoluteError=mae,
+                meanPosterior=np.mean(posteriors),
+                quantilePosterior=list(zip(quantiles, quantileValues)))
+
+
+# evaluateHLR(np.array([-0.0125, -0.2245, 7.5365]), test)
 
 
 def verifyJacobian():
@@ -239,9 +277,14 @@ def evaluate(weights, df):
 
     mae = np.mean(np.abs(priorProbability - observedProbability))
 
-    meanPosterior = np.mean(
-        np.exp(np.vectorize(logp)(ks, alphas, betas, deltas, ns)))
-    return dict(meanAbsoluteError=mae, meanPosterior=meanPosterior)
+    posteriors = np.exp(np.vectorize(logp)(ks, alphas, betas, deltas, ns))
+    meanPosterior = np.mean(posteriors)
+    quantiles = [0.1, 0.5, 0.9]
+    quantileValues = np.quantile(posteriors, quantiles)
+
+    return dict(meanAbsoluteError=mae,
+                meanPosterior=meanPosterior,
+                quantilePosterior=list(zip(quantiles, quantileValues)))
 
 
 def optim():
