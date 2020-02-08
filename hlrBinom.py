@@ -100,10 +100,10 @@ def adaGrad(weights,
     weights = weights.copy()
     gti = np.zeros_like(weights)
 
-    xslice = slice(0, minibatchsize)
     for t in range(max_it):
         df = df.sample(frac=1.0)
         x = x[df.index, :]
+        xslice = slice(0, minibatchsize)
         while xslice.start < len(df):
             # https://stackoverflow.com/a/34879805/500207
             sd = df[xslice]
@@ -112,12 +112,12 @@ def adaGrad(weights,
             gti += grad**2
             adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
             weights -= stepsize * adjusted_grad
-            if verbose and xslice.start % verboseIteration == 0:
+            if verbose and (xslice.start % verboseIteration == 0):
                 # prob = objective(weights, df)
                 print(
-                    "# Iteration {}/{}, weights={}, |grad|^2={:.1e}, Δ={:.1e}".
-                    format(t, xslice.start, weights, np.sum(grad**2),
-                           np.sqrt(np.sum(adjusted_grad**2))))
+                    "# Iteration {}/{:_}, weights={}, |grad|^2={:.1e}, Δ={:.1e}"
+                    .format(t, xslice.start, weights, np.sum(grad**2),
+                            np.sqrt(np.sum(adjusted_grad**2))))
             xslice = slice(xslice.start + minibatchsize,
                            xslice.stop + minibatchsize, xslice.step)
     return weights
@@ -127,7 +127,7 @@ def adaGrad(weights,
 
 init = np.zeros(3)
 X = np.c_[data.sqrtright, data.sqrtwrong, np.ones(len(data))]
-# w = adaGrad(init, data, X, stepsize=1., max_it=2, minibatchsize=1000,verboseIteration=1)
+# w = adaGrad(init, data, X, stepsize=1., max_it=2, minibatchsize=1000,verboseIteration=10_000)
 
 
 def testJac():
