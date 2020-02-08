@@ -31,7 +31,9 @@ def optimized(k, alpha, beta, delta, n, mu, kappa, logitMu, logitKappa,
 
     psiKappa = -mu * psiMu + psi(ds + 1 / kappa) - psi(1 / kappa)
     baseJacKappa = np.sum(psiKappa * tosum) * kappaPrime / kappa**2
-
+    if not np.isfinite(baseJacKappa):
+        import pdb
+        pdb.set_trace()
     return (prob,
             np.hstack(
                 [baseJacMu * featureVecMu, baseJacKappa * featureVecKappa]))
@@ -71,6 +73,11 @@ def logp(k, alpha, beta, delta, n):
         mags, b=signs, return_sign=False)
 
 
+def pclip(p):
+    # bound min/max model predictions (helps with loss optimization)
+    return np.clip(p, a_min=0.0001, a_max=.99999)
+
+
 def evaluate(weights, df):
     wm1, wm2, wm0, wk0 = weights
     logitMus = df.feature1 * wm1 + df.feature2 * wm2 + wm0
@@ -85,7 +92,7 @@ def evaluate(weights, df):
 
     priorProbability = np.exp(
         betaln(alphas + deltas, betas) - betaln(alphas, betas))
-    observedProbability = ks / ns
+    observedProbability = pclip(ks / ns)
 
     mae = np.mean(np.abs(priorProbability - observedProbability))
 
@@ -135,7 +142,7 @@ def adaGrad(weights,
             gti += grad**2
             adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
             weights -= stepsize * adjusted_grad
-            if verbose:
+            if verbose and (xslice.start % verboseIteration) == 0:
                 # prob = objective(weights, df)
                 print(
                     "# Iteration {}/{:_}, weights={}, |grad|^2={:.1e}, Δ={:.1e}"
@@ -153,7 +160,7 @@ data = fulldata[:Ndata]
 test = fulldata[Ndata:]
 
 init = np.zeros(4)
-# w = adaGrad(init,data,minibatchsize=1000,max_it=3,stepsize=1.,            verboseIteration=1000)
+# w = adaGrad(init,data,minibatchsize=1000,max_it=3,stepsize=1., verboseIteration=1000)
 nice = np.array([0.19210431, -0.67477556, 2.35533034, 4.37681914])
 
 nice2 = np.array([1.8806828, 1.02441168, 4.30784716, 5.721494])
