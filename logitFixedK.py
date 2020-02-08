@@ -16,27 +16,23 @@ def optimized(k, alpha, beta, delta, n, mu, kappa, logitMu, logitKappa,
               featureVecMu, featureVecKappa):
     i = np.arange(n - k + 1.0)
     ds = delta * (i + k)
-    mags = binomln(n - k, i) + betaln(ds + alpha, beta) - betaln(alpha, beta)
-    signs = (-1.0)**i
-    denominator = np.exp(logsumexp(mags, b=signs))
+    tosum = np.exp(
+        binomln(n, k) + binomln(n - k, i) + betaln(ds + alpha, beta) -
+        betaln(alpha, beta))
+    tosum *= (-1.0)**i
+
+    prob = np.sum(tosum)
 
     kappaPrime = kappa / (np.exp(logitKappa) + 1)
     muPrime = mu / (np.exp(logitMu) + 1)
 
-    denominatorln = logsumexp(mags, b=signs)
-    logp = denominatorln + binomln(n, k)
-
     psiMu = psi(ds + alpha) - psi(alpha)
-    tmp = signs * np.exp(mags)
-
-    numeratorMu = np.sum(psiMu * tmp) * muPrime / kappa
-    baseJacMu = numeratorMu / denominator
+    baseJacMu = np.sum(psiMu * tosum) * muPrime / kappa
 
     psiKappa = -mu * psiMu + psi(ds + 1 / kappa) - psi(1 / kappa)
-    numeratorKappa = np.sum(psiKappa * tmp) * kappaPrime / kappa**2
-    baseJacKappa = numeratorKappa / denominator
+    baseJacKappa = np.sum(psiKappa * tosum) * kappaPrime / kappa**2
 
-    return (logp,
+    return (prob,
             np.hstack(
                 [baseJacMu * featureVecMu, baseJacKappa * featureVecKappa]))
 
@@ -116,6 +112,7 @@ def adaGrad(weights,
 
 
 Ndata = round(len(fulldata) * 0.9)
+# Ndata = 1000
 data = fulldata[:Ndata]
 test = fulldata[Ndata:]
 
