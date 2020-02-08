@@ -379,25 +379,32 @@ def adaGrad(weights,
             df,
             stepsize=1e-2,
             fudge_factor=1e-6,
-            max_it=1000,
+            max_it=2,
             minibatchsize=250,
-            verbose=True):
-    ld = len(data)
+            verbose=True,
+            verboseIteration=1000):
+    weights = weights.copy()
     gti = np.zeros_like(weights)
 
     for t in range(max_it):
-        sd = df.sample(minibatchsize).reset_index(
-            drop=True)  # https://stackoverflow.com/a/34879805/500207
-        val, grad = optimizedObjective(weights, sd)
-        gti += grad**2
-        adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
-        weights -= stepsize * adjusted_grad
-        if verbose:
-            # prob = objective(weights, df)
-            print(
-                "# Iteration {}, weights={}, |grad|^2={:.1e}, Δ={:.1e}".format(
-                    t, weights, np.sum(grad**2),
-                    np.sqrt(np.sum(adjusted_grad**2))))
+        df = df.sample(frac=1.0)
+        xslice = slice(0, minibatchsize)
+        while xslice.start < len(df):
+            sd = df.sample(minibatchsize).reset_index(
+                drop=True)  # https://stackoverflow.com/a/34879805/500207
+            val, grad = optimizedObjective(weights, sd)
+            gti += grad**2
+            adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
+            weights -= stepsize * adjusted_grad
+            if verbose:
+                # prob = objective(weights, df)
+                print(
+                    "# Iteration {}/{:_}, weights={}, |grad|^2={:.1e}, Δ={:.1e}"
+                    .format(t, xslice.start, weights, np.sum(grad**2),
+                            np.sqrt(np.sum(adjusted_grad**2))))
+            xslice = slice(xslice.start + minibatchsize,
+                           xslice.stop + minibatchsize, xslice.step)
+
     return weights
 
 
@@ -408,6 +415,7 @@ test = fulldata[Ndata:]
 init = np.zeros(6)
 nice = np.array(
     [0.18648945, -0.70397773, 2.43953953, 0.75399696, 0.45243174, 0.30796359])
+# w = adaGrad(init, data, minibatchsize=1000, max_it=3, stepsize=1., verboseIteration=1000)
 # w = adaGrad(init, data, minibatchsize=1000, max_it=20_000, stepsize=1.)
 # w = adaGrad(nice, data, minibatchsize=1000)
 # w = adaGrad(w, data, minibatchsize=1000)
