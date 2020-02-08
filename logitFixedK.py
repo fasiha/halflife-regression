@@ -161,6 +161,8 @@ nice = np.array([0.19210431, -0.67477556, 2.35533034, 4.37681914])
 
 nice2 = np.array([1.8806828, 1.02441168, 4.30784716, 5.721494])
 
+wbalanced = np.array([1.14679885, -2.18898707, 3.57853457, -12.86747243])
+# evaluate(wbalanced, test)
 # oh crap:
 # evaluate( nice2,test[test.k<test.n])
 # evaluate( nice2,test[test.k==test.n])

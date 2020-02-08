@@ -98,19 +98,21 @@ test = fulldata[Ndata:]
 # https://github.com/benbo/adagrad/blob/master/adagrad.py
 def adaGrad(weights,
             df,
-            x,
             stepsize=1e-2,
             fudge_factor=1e-6,
             max_it=2,
             minibatchsize=250,
             verbose=True,
-            verboseIteration=100):
+            verboseIteration=100,
+            toBalance=False):
   weights = weights.copy()
   gti = np.zeros_like(weights)
 
   for t in range(max_it):
     df = df.sample(frac=1.0)
-    x = x[df.index, :]
+    if toBalance:
+      df = balance(df)
+    x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df))]
     xslice = slice(0, minibatchsize)
     while xslice.start < len(df):
       # https://stackoverflow.com/a/34879805/500207
@@ -128,11 +130,32 @@ def adaGrad(weights,
   return weights
 
 
-# np.seterr(all='raise')
+def balance(df):
+  ind0 = df[df.k < df.n].index
+  ind1 = df[df.k == df.n].index
+  N = min(len(ind0), len(ind1))
+  idx = ind0[:N].append(ind1[:N]).sort_values()
+  return df.loc[idx]
 
+
+# np.seterr(all='raise')
 init = np.zeros(3)
-X = np.c_[data.sqrtright, data.sqrtwrong, np.ones(len(data))]
-# w = adaGrad(init, data, X, stepsize=1., max_it=2, minibatchsize=10000,verboseIteration=100_000)
+# w = adaGrad(init, data, stepsize=1., max_it=2, minibatchsize=10000,verboseIteration=100_000)
+balanced = balance(data)
+# w = adaGrad(init, balanced, stepsize=1., max_it=50, minibatchsize=10000,verboseIteration=100_000)
+
+wnice = np.array([3.88079004, 4.50591716, 5.18645383])
+[
+    evaluate(wnice, test),
+    evaluate(wnice, test[test.k == test.n]),
+    evaluate(wnice, test[test.k < test.n])
+]
+wbal = np.array([1.67063654, -5.60241933, 9.82442276])
+[
+    evaluate(wbal, test),
+    evaluate(wbal, test[test.k == test.n]),
+    evaluate(wbal, test[test.k < test.n])
+]
 
 
 def testJac():
