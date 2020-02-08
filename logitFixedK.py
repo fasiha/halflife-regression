@@ -36,6 +36,7 @@ def optimizedObjective(weights, df):
   wm1, wm2, wm0, wk0 = weights
   logitMus = df.feature1 * wm1 + df.feature2 * wm2 + wm0
   mus = expit(logitMus)
+  # if logitMu is too big, mu -> 1, beta -> 0
   logitKappas = np.ones(len(df)) * wk0
   kappas = expit(logitKappas)
   alphas = mus / kappas
@@ -139,13 +140,27 @@ def adaGrad(weights,
   return weights
 
 
+def balance(df):
+  ind0 = df[df.k < df.n].index
+  ind1 = df[df.k == df.n].index
+  N = min(len(ind0), len(ind1))
+  idx = ind0[:N].append(ind1[:N]).sort_values()
+  return df.loc[idx]
+
+
 Ndata = round(len(fulldata) * 0.9)
 # Ndata = 1000
 data = fulldata[:Ndata]
+balanced = balance(data)
 test = fulldata[Ndata:]
 
 init = np.zeros(4)
-# w = adaGrad(init,data,minibatchsize=1000,max_it=3,stepsize=1., verboseIteration=1000)
+# w = adaGrad(init,data,minibatchsize=1000,max_it=3,stepsize=1., verboseIteration=10000)
+# w = adaGrad(init,balanced,minibatchsize=1000,max_it=3,stepsize=1., verboseIteration=10000)
 nice = np.array([0.19210431, -0.67477556, 2.35533034, 4.37681914])
 
 nice2 = np.array([1.8806828, 1.02441168, 4.30784716, 5.721494])
+
+# oh crap:
+# evaluate( nice2,test[test.k<test.n])
+# evaluate( nice2,test[test.k==test.n])
