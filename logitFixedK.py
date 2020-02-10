@@ -41,6 +41,8 @@ def optimizedObjective(weights, df):
   kappas = expit(logitKappas)
   alphas = mus / kappas
   betas = (1 - mus) / kappas
+  beta0idx = betas == 0
+  betas[beta0idx] = expit(-logitMus[beta0idx]) / kappas[beta0idx]  # (1-expit(x)) = expit(-x)
   deltas = df.delta_.values
   ns = df.n.values
   ks = df.k.values
@@ -160,9 +162,32 @@ init = np.zeros(4)
 nice = np.array([0.19210431, -0.67477556, 2.35533034, 4.37681914])
 
 nice2 = np.array([1.8806828, 1.02441168, 4.30784716, 5.721494])
+nice3 = np.array([2.09981812, 2.05356804, 2.47141432, 1.91184667])
 
 wbalanced = np.array([1.14679885, -2.18898707, 3.57853457, -12.86747243])
 # evaluate(wbalanced, test)
 # oh crap:
 # evaluate( nice2,test[test.k<test.n])
 # evaluate( nice2,test[test.k==test.n])
+
+# cor=30; wro=2;mu=expit(w[:3] @ [np.sqrt(1+cor), np.sqrt(1+wro), 1]); kappa=expit(w[-1]); alpha=mu/kappa; beta=(1-mu)/kappa
+from scipy.special import logit
+# a,b=9.,2.; m,k=a/(a+b),1/(a+b);(a,b,m,k,logit(m), logit(k))
+iter = 0
+
+
+def callback(x):
+  global iter
+  iter += 1
+  print("at iter {}, x={}".format(iter, x))
+
+
+import scipy.optimize as opt
+# solncg = opt.minimize(
+#     lambda w: optimizedObjective(w, data[:10000]),
+#     init,
+#     options=dict(disp=True, xtol=1e-3),
+#     tol=1e-3,
+#     method='Newton-CG',
+#     jac=True,
+#     callback=callback)
