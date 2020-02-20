@@ -61,11 +61,7 @@ def evaluate(weights, df, expFormula):
   return dict(meanAbsoluteError=mae)
 
 
-def optimizedObjective(
-    weights,
-    df,
-    expFormula,
-):
+def optimizedObjective(weights, df, expFormula):
   X = np.c_[df.feature1, df.feature2, np.ones(len(df))]
   alphaWeightsDotFeatureVec = X @ weights[:3]
   betaWeightsDotFeatureVec = X @ weights[3:]
@@ -81,11 +77,27 @@ def optimizedObjective(
 
   totalY = 0
   totalJac = 0
-  for (i, args) in enumerate(
-      zip(ks, alphas, betas, deltas, ns, alphaWeightsDotFeatureVec, betaWeightsDotFeatureVec)):
-    y, jac = optimized(*args, X[i], expFormula=expFormula)
-    totalY += y
-    totalJac += jac
+  for i in range(len(df)):
+    n = ns[i]
+    truek = ks[i]
+    for k in range(n + 1):
+      y, jac = optimized(
+          k,
+          alphas[i],
+          betas[i],
+          deltas[i],
+          n,
+          alphaWeightsDotFeatureVec[i],
+          betaWeightsDotFeatureVec[i],
+          X[i],
+          expFormula=expFormula)
+      if k == truek:
+        continue
+        totalY += y
+        totalJac += jac
+      else:
+        totalY -= y
+        totalJac -= jac
   return (-totalY, -totalJac)
 
 
@@ -149,12 +161,14 @@ init = np.zeros(6)
 # w = adaGrad(init,data,lambda w,df: optimizedObjective(w,df,True), minibatchsize=1000,max_it=3,stepsize=1., verboseIteration=1000)
 
 wncg = np.array([1.51931747, 0.77973884, 0.58103441, -1.68240805, -0.86097934, -0.64768064])
-# print(evaluate(wncg, test))
+wncgPM = np.array([1.9169825, 0.99362775, 0.77641418, -2.09854942, -1.08437096, -0.85206609])
+# print(evaluate(wncgPM, test, True))
 # w=wncg; cor=30; wro=2; x = np.sqrt(1+np.array([cor, wro, 0]));alpha=np.exp(x@w[:3]);beta=np.exp(x@w[3:]);alpha,beta
 
 
 def verifyJacobian(expFormula=True):
   init = np.random.randn(6)
+  init = np.zeros(6)
   small = fulldata[:1000]
   print(optimizedObjective(init, small, expFormula))
   import numdifftools as nd
@@ -178,11 +192,11 @@ def callback(x):
 
 
 import scipy.optimize as opt
-# solncg = opt.minimize(
-#     lambda w: optimizedObjective(w, data[:10000]),
-#     init,
-#     options=dict(disp=True, xtol=1e-3),
-#     tol=1e-3,
-#     method='Newton-CG',
-#     jac=True,
-#     callback=callback)
+solncg = opt.minimize(
+    lambda w: optimizedObjective(w, data[:10000], True),
+    init,
+    options=dict(disp=True, xtol=1e-3),
+    tol=1e-3,
+    method='Newton-CG',
+    jac=True,
+    callback=callback)

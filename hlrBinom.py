@@ -68,7 +68,8 @@ def mysumexp(a, b=1):
   return s * np.exp(a_max)
 
 
-def sumProbJacDf(w, x, df):
+def sumProbJacDf(w, df):
+  x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df))]
   logh = (x @ w) * log2
   h = np.exp(logh)
   logp = (-df.t / h) * log2
@@ -97,7 +98,7 @@ test = fulldata[Ndata:]
 
 # https://github.com/benbo/adagrad/blob/master/adagrad.py
 def adaGrad(weights,
-            df,
+            origDf,
             stepsize=1e-2,
             fudge_factor=1e-6,
             max_it=2,
@@ -109,16 +110,16 @@ def adaGrad(weights,
   gti = np.zeros_like(weights)
 
   for t in range(max_it):
-    df = df.sample(frac=1.0)
+    df = origDf.sample(frac=1.0)
     if toBalance:
       df = balance(df)
-    x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df))]
+    # x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df))]
     xslice = slice(0, minibatchsize)
     while xslice.start < len(df):
       # https://stackoverflow.com/a/34879805/500207
       sd = df[xslice]
-      sx = x[xslice, :]
-      val, grad = sumProbJacDf(weights, sx, sd)
+      # sx = x[xslice, :]
+      val, grad = sumProbJacDf(weights, sd)
       gti += grad**2
       adjusted_grad = grad / (fudge_factor + np.sqrt(gti))
       weights -= stepsize * adjusted_grad
@@ -140,22 +141,12 @@ def balance(df):
 
 # np.seterr(all='raise')
 init = np.zeros(3)
-# w = adaGrad(init, data, stepsize=1., max_it=2, minibatchsize=10000,verboseIteration=100_000)
+# w = adaGrad(init, data, stepsize=1., max_it=2, minibatchsize=10000,verboseIteration=100_000, toBalance=True)
 balanced = balance(data)
 # w = adaGrad(init, balanced, stepsize=1., max_it=50, minibatchsize=10000,verboseIteration=100_000)
 
 wnice = np.array([3.88079004, 4.50591716, 5.18645383])
-[
-    evaluate(wnice, test),
-    evaluate(wnice, test[test.k == test.n]),
-    evaluate(wnice, test[test.k < test.n])
-]
 wbal = np.array([1.67063654, -5.60241933, 9.82442276])
-[
-    evaluate(wbal, test),
-    evaluate(wbal, test[test.k == test.n]),
-    evaluate(wbal, test[test.k < test.n])
-]
 
 
 def testJac():
@@ -178,11 +169,31 @@ def testJac():
     pmf = stats.binom.pmf(k, n, p)
     return -np.sum(pmf)
 
-  X = np.c_[data.sqrtright, data.sqrtwrong, np.ones(len(data))]
-  [[
-      nd.Derivative(lambda w: obj(data.k, data.n, data.t, X, np.array([w, .01, 4.4])))(-.3),
-      nd.Derivative(lambda w: obj(data.k, data.n, data.t, X, np.array([-.3, w, 4.4])))(.01),
-      nd.Derivative(lambda w: obj(data.k, data.n, data.t, X, np.array([-.3, .01, w])))(4.4)
-  ],
-   sumProbJac(data.k, data.n, data.t, X, np.array([-.3, .01, 4.4])),
-   sumProbJacDf([-.3, .01, 4.4], X, data)]
+
+def optim(data):
+  import scipy.optimize as opt
+  iter = 0
+
+  def callback(x):
+    nonlocal iter
+    iter += 1
+    print("at iter {}, x={}".format(iter, x.tolist()))
+
+  solncg = opt.minimize(
+      lambda w: sumProbJacDf(w, balance(data)),
+      init,
+      options=dict(disp=True, xtol=1e-3),
+      tol=1e-3,
+      method='Newton-CG',
+      jac=True,
+      callback=callback)
+
+
+print(optim(data.sample(frac=1.0)))
+
+
+def paramsToHalflife(cor, wro, w):
+  return 2**(np.sqrt([cor + 1, wro + 1, 1]) @ w)
+
+
+wpaper = np.array([-0.0125, -0.2245, 7.5365])
