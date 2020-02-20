@@ -78,7 +78,12 @@ def sumProbJacDf(w, df):
 
   logretbase = logpmf + loglog2Times2 + np.log(df.t) - logh - log1MinusP
   jacBase = np.exp(logretbase) * df.k - np.exp(logretbase + logp + np.log(df.n))
-  return (-mysumexp(logpmf), -(jacBase @ x))
+  # D[log(f(x)), x] = f'(x) / f(x)
+  logfx = logsumexp(logpmf)
+  fx = np.exp(logfx)
+  fprimex = jacBase @ x
+  logfprimex = fprimex / fx
+  return (-logfx, -(logfprimex))
 
 
 def verify(data):
@@ -97,6 +102,7 @@ def verify(data):
 
 
 import pandas as pd
+from scipy.special import logsumexp
 fulldata = pd.read_csv("features.csv")
 fulldata['n'] = fulldata.session_seen
 fulldata['k'] = fulldata.session_correct
@@ -205,7 +211,9 @@ def optim(data):
 
 
 # print(optim(data.sample(frac=1.0)))
-# at iter 45, x=[ 2.0144001  -6.87423151 11.57950714]
+# at iter 45, x=[ 2.0144001  -6.87423151 11.57950714] # this is maximizing p, not log(p)
+# at iter 8, x=[2.079918567916871, -7.07191546094335, 11.746564528780242] # maximizing log(p), different sample
+# at iter 7, x=[1.6238849597801754, -5.552162163881284, 9.82985120557989] # maximizing log(p) but no shuffling, i.e., log doesn't change optimization. I feel stupid :P.
 
 
 def paramsToHalflife(cor, wro, w):
