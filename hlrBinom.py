@@ -81,6 +81,21 @@ def sumProbJacDf(w, df):
   return (-mysumexp(logpmf), -(jacBase @ x))
 
 
+def verify(data):
+  init = np.zeros(3)
+  small = data[:1000]
+  print(sumProbJacDf(init, small))
+  import numdifftools as nd
+  for widx, weight in enumerate(init):
+
+    def foo(w):
+      wvec = init.copy()
+      wvec[widx] = w
+      return sumProbJacDf(wvec, small)[0]
+
+    print(nd.Derivative(foo)(weight))
+
+
 import pandas as pd
 fulldata = pd.read_csv("features.csv")
 fulldata['n'] = fulldata.session_seen
@@ -189,7 +204,8 @@ def optim(data):
       callback=callback)
 
 
-print(optim(data.sample(frac=1.0)))
+# print(optim(data.sample(frac=1.0)))
+# at iter 45, x=[ 2.0144001  -6.87423151 11.57950714]
 
 
 def paramsToHalflife(cor, wro, w):
