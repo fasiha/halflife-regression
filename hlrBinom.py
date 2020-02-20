@@ -10,7 +10,7 @@ def prob(k, n, t, x, w):
 
 
 def evaluate(w, df):
-  x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df))]
+  x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df)), df.sqrttotal]
   h = 2**(x @ w)
   p = 2**(-df.t / h)
   pmf = stats.binom.pmf(df.k, df.n, p)
@@ -69,7 +69,7 @@ def mysumexp(a, b=1):
 
 
 def sumProbJacDf(w, df):
-  x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df))]
+  x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df)), df.sqrttotal]
   logh = (x @ w) * log2
   h = np.exp(logh)
   logp = (-df.t / h) * log2
@@ -87,7 +87,7 @@ def sumProbJacDf(w, df):
 
 
 def verify(data):
-  init = np.zeros(3)
+  init = np.zeros(4)
   small = data[:1000]
   print(sumProbJacDf(init, small))
   import numdifftools as nd
@@ -109,6 +109,11 @@ fulldata['k'] = fulldata.session_correct
 fulldata['t'] = fulldata.delta / (60 * 60 * 24)  # convert time delta to days
 fulldata['sqrtright'] = np.sqrt(1 + fulldata.history_correct)
 fulldata['sqrtwrong'] = np.sqrt(1 + (fulldata.history_seen - fulldata.history_correct))
+fulldata['sqrttotal'] = np.sqrt(1 + fulldata.history_seen)
+fulldata['right'] = fulldata.history_correct
+fulldata['logright'] = np.log(1 + fulldata.right)
+fulldata['wrong'] = fulldata.history_seen - fulldata.history_correct
+fulldata['logwrong'] = np.log(1 + fulldata.wrong)
 fulldata[
     'obsp'] = fulldata.session_correct / fulldata.session_seen  # clip these to compare to HLR paper?
 
@@ -170,29 +175,9 @@ wnice = np.array([3.88079004, 4.50591716, 5.18645383])
 wbal = np.array([1.67063654, -5.60241933, 9.82442276])
 
 
-def testJac():
-  import numdifftools as nd
-  k = 2
-  n = 3
-  t = 1.1
-  x = np.array([1, 2, 3.])
-  w1 = -.1
-  w2 = -.3
-  w0 = -.2
-  print([
-      nd.Derivative(lambda w: prob(k, n, t, x, np.array([w1, w, w0])))(w2),
-      probJacobian(k, n, t, x, np.array([w1, w2, w0]), 1)
-  ])
-
-  def obj(k, n, t, x, w):
-    h = 2**(x @ w)
-    p = 2**(-t / h)
-    pmf = stats.binom.pmf(k, n, p)
-    return -np.sum(pmf)
-
-
 def optim(data):
   import scipy.optimize as opt
+  init = np.zeros(4)
   iter = 0
 
   def callback(x):
@@ -214,10 +199,15 @@ def optim(data):
 # at iter 45, x=[ 2.0144001  -6.87423151 11.57950714] # this is maximizing p, not log(p)
 # at iter 8, x=[2.079918567916871, -7.07191546094335, 11.746564528780242] # maximizing log(p), different sample
 # at iter 7, x=[1.6238849597801754, -5.552162163881284, 9.82985120557989] # maximizing log(p) but no shuffling, i.e., log doesn't change optimization. I feel stupid :P.
+# at iter 64, x=[7.84411111648866, -3.166204175724058, 9.728716263991107, -6.661347708048041]
 
 
 def paramsToHalflife(cor, wro, w):
   return 2**(np.sqrt([cor + 1, wro + 1, 1]) @ w)
+
+
+def paramsToHalflife4(cor, wro, w):
+  return 2**(np.sqrt([cor + 1, wro + 1, 1, 1 + wro + cor]) @ w)
 
 
 wpaper = np.array([-0.0125, -0.2245, 7.5365])
