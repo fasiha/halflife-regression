@@ -68,7 +68,7 @@ def mysumexp(a, b=1):
   return s * np.exp(a_max)
 
 
-def sumProbJacDf(w, df):
+def sumProbJacDf(w, df, uselog=True):
   x = np.c_[df.sqrtright, df.sqrtwrong, np.ones(len(df)), df.sqrttotal]
   logh = (x @ w) * log2
   h = np.exp(logh)
@@ -78,6 +78,9 @@ def sumProbJacDf(w, df):
 
   logretbase = logpmf + loglog2Times2 + np.log(df.t) - logh - log1MinusP
   jacBase = np.exp(logretbase) * df.k - np.exp(logretbase + logp + np.log(df.n))
+  if not uselog:
+    return (-mysumexp(logpmf), -(jacBase @ x))
+
   # D[log(f(x)), x] = f'(x) / f(x)
   logfx = logsumexp(logpmf)
   fx = np.exp(logfx)
@@ -86,17 +89,17 @@ def sumProbJacDf(w, df):
   return (-logfx, -(logfprimex))
 
 
-def verify(data):
+def verify(data, uselog=True):
   init = np.zeros(4)
   small = data[:1000]
-  print(sumProbJacDf(init, small))
+  print(sumProbJacDf(init, small, uselog))
   import numdifftools as nd
   for widx, weight in enumerate(init):
 
     def foo(w):
       wvec = init.copy()
       wvec[widx] = w
-      return sumProbJacDf(wvec, small)[0]
+      return sumProbJacDf(wvec, small, uselog)[0]
 
     print(nd.Derivative(foo)(weight))
 
@@ -175,9 +178,10 @@ wnice = np.array([3.88079004, 4.50591716, 5.18645383])
 wbal = np.array([1.67063654, -5.60241933, 9.82442276])
 
 
-def optim(data):
+def optim(data, rebalance=True, init=None):
   import scipy.optimize as opt
-  init = np.zeros(4)
+  if init is None:
+    init = np.zeros(4)
   iter = 0
 
   def callback(x):
@@ -185,8 +189,10 @@ def optim(data):
     iter += 1
     print("at iter {}, x={}".format(iter, x.tolist()))
 
+  df = balance(data) if rebalance else data
+  print('data len', len(df))
   solncg = opt.minimize(
-      lambda w: sumProbJacDf(w, balance(data)),
+      lambda w: sumProbJacDf(w, df),
       init,
       options=dict(disp=True, xtol=1e-3),
       tol=1e-3,
@@ -199,7 +205,8 @@ def optim(data):
 # at iter 45, x=[ 2.0144001  -6.87423151 11.57950714] # this is maximizing p, not log(p)
 # at iter 8, x=[2.079918567916871, -7.07191546094335, 11.746564528780242] # maximizing log(p), different sample
 # at iter 7, x=[1.6238849597801754, -5.552162163881284, 9.82985120557989] # maximizing log(p) but no shuffling, i.e., log doesn't change optimization. I feel stupid :P.
-# at iter 64, x=[7.84411111648866, -3.166204175724058, 9.728716263991107, -6.661347708048041]
+# at iter 64, x=[7.84411111648866, -3.166204175724058, 9.728716263991107, -6.661347708048041] with rebalance, random shuffle
+# at iter 64, x=[6.568406934249408, -3.8884813903126116, 10.030539798096072, -5.226503120116738]
 
 
 def paramsToHalflife(cor, wro, w):
